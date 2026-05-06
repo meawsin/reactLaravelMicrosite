@@ -6,6 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class NewsArticle extends Model
 {
-    // Ensure this property is 'protected' as per Laravel standards
-    protected $fillable = ['title', 'slug', 'content', 'published_at'];
+    // Bug fix #3: featured_image was missing from fillable — it was being silently dropped
+    protected $fillable = ['title', 'slug', 'content', 'featured_image', 'published_at'];
 }
