@@ -9,9 +9,11 @@ class NewsArticleController extends Controller
 {
     public function index()
     {
-        $news = NewsArticle::orderBy('published_at', 'desc')->get();
+        // @phpstan-ignore-next-line
+        $news = NewsArticle::orderBy('published_at', 'desc')
+            ->paginate(12);
         return response()->json($news);
-    }
+    }   
 
     public function show($slug)
     {

@@ -95,6 +95,42 @@ a { text-decoration: none; color: inherit; }
   gap: 28px;
 }
 
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 48px;
+  padding-bottom: 32px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: .85rem;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all .2s;
+  min-width: 40px;
+}
+.page-btn:hover:not(:disabled) {
+  border-color: var(--green);
+  color: var(--green);
+}
+.page-btn.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--white);
+  font-weight: 600;
+}
+.page-btn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
 .news-card {
   background: var(--white);
   border: 1px solid var(--border);
@@ -235,6 +271,38 @@ a { text-decoration: none; color: inherit; }
 .form-row { display: flex; flex-direction: column; gap: 22px; }
 .form-row.two-col { flex-direction: row; gap: 20px; }
 .form-row.two-col .field { flex: 1; }
+
+.import-section {
+  margin-top: 48px;
+  padding-top: 48px;
+  border-top: 1px solid var(--border);
+}
+
+.import-drop-area {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.import-label {
+  flex: 1;
+  min-width: 240px;
+  background: var(--white);
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: .9rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+
+.import-label:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
 
 /* ── Shared Field Styles ─────────────────────────────────────────────── */
 .field { display: flex; flex-direction: column; gap: 7px; }

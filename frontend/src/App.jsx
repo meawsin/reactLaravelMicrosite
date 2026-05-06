@@ -61,7 +61,7 @@ function NewsCard({ article }) {
 }
 
 // ─── Pages ────────────────────────────────────────────────────────────────────
-function Newsroom({ news, loading }) {
+function Newsroom({ news, loading, pagination, onPageChange }) {
   return (
     <main className="newsroom">
       <section className="newsroom-hero">
@@ -69,20 +69,54 @@ function Newsroom({ news, loading }) {
         <h1 className="hero-title">Latest News</h1>
         <div className="hero-line" />
       </section>
+
       {loading && (
         <div className="loading-wrap">
           <div className="spinner" />
           <p>Loading news…</p>
         </div>
       )}
+
       {!loading && news.length === 0 && (
         <p className="empty-state">No news articles yet.</p>
       )}
+
       <div className="news-grid">
         {news.map(article => (
           <NewsCard key={article.id} article={article} />
         ))}
       </div>
+
+      {/* Pagination */}
+      {pagination && pagination.last_page > 1 && (
+        <div className="pagination">
+          <button
+            className="page-btn"
+            disabled={pagination.current_page === 1}
+            onClick={() => onPageChange(pagination.current_page - 1)}
+          >
+            ← Prev
+          </button>
+
+          {[...Array(pagination.last_page)].map((_, i) => (
+            <button
+              key={i + 1}
+              className={`page-btn ${pagination.current_page === i + 1 ? 'active' : ''}`}
+              onClick={() => onPageChange(i + 1)}
+            >
+              {i + 1}
+            </button>
+          ))}
+
+          <button
+            className="page-btn"
+            disabled={pagination.current_page === pagination.last_page}
+            onClick={() => onPageChange(pagination.current_page + 1)}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </main>
   )
 }
@@ -187,6 +221,8 @@ function AdminLogin() {
 
 function AdminPortal() {
   const navigate = useNavigate()
+
+  // ── Single article form state ──────────────────────────────────
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -195,6 +231,11 @@ function AdminPortal() {
   )
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  // ── Bulk import state ──────────────────────────────────────────
+  const [importFile, setImportFile] = useState(null)
+  const [importStatus, setImportStatus] = useState(null)
+  const [importLoading, setImportLoading] = useState(false)
 
   useEffect(() => {
     if (!getToken()) navigate('/admin/login')
@@ -209,6 +250,7 @@ function AdminPortal() {
     }
   }
 
+  // ── Single article submit ──────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -239,6 +281,42 @@ function AdminPortal() {
     }
   }
 
+  // ── Bulk import submit ─────────────────────────────────────────
+  const handleImport = async () => {
+    if (!importFile) return
+    setImportLoading(true)
+    setImportStatus(null)
+
+    const formData = new FormData()
+    formData.append('file', importFile)
+
+    try {
+      const res = await fetch(`${API}/admin/import`, {
+        method: 'POST',
+        headers: {
+          // NOTE: No Content-Type here — browser sets it automatically with multipart boundary
+          'Authorization': `Bearer ${getToken()}`,
+          'Accept': 'application/json',
+        },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Import failed')
+      setImportStatus({
+        type: 'success',
+        msg: `✓ ${data.imported} articles imported, ${data.skipped} skipped (duplicates).`
+      })
+      setImportFile(null)
+      // Reset the file input visually
+      const fileInput = document.getElementById('import-file')
+      if (fileInput) fileInput.value = ''
+    } catch (err) {
+      setImportStatus({ type: 'error', msg: err.message })
+    } finally {
+      setImportLoading(false)
+    }
+  }
+
   return (
     <main className="admin-page">
       <div className="admin-topbar">
@@ -248,10 +326,15 @@ function AdminPortal() {
           <button className="btn-logout" onClick={handleLogout}>Log Out</button>
         </div>
       </div>
+
       <div className="admin-content">
+
+        {/* ── Section 1: Post Single Article ── */}
         <h1 className="admin-heading">Post a News Article</h1>
         <p className="admin-subheading">Fill in the details below. You can backdate articles when migrating old news.</p>
+
         {status && <div className={`form-banner ${status.type}`}>{status.msg}</div>}
+
         <form className="admin-form" onSubmit={handleSubmit}>
           <div className="field">
             <label className="field-label">Title *</label>
@@ -291,6 +374,57 @@ function AdminPortal() {
             </button>
           </div>
         </form>
+
+        {/* ── Section 2: Bulk Import ── */}
+        <div className="import-section">
+          <h2 className="admin-heading" style={{ fontSize: '1.4rem' }}>Bulk Import News</h2>
+          <p className="admin-subheading">
+            Upload a <strong>JSON</strong> file exported from WordPress, or an <strong>Excel / CSV</strong> file from the old site.
+            Duplicate articles are skipped automatically based on slug.
+          </p>
+
+          <div className="import-how">
+            <div className="import-how-item">
+              <span className="import-how-badge">WordPress → JSON</span>
+              <span className="import-how-text">
+                Go to <code>localhost:8080/wordpress/wp-json/wp/v2/posts?per_page=100&_embed</code> → Save page as <code>.json</code> → Upload here
+              </span>
+            </div>
+            <div className="import-how-item">
+              <span className="import-how-badge">Old Site → Excel/CSV</span>
+              <span className="import-how-text">
+                Use the Excel sheet with columns: <code>title, date, slug, content, featured_image_url</code>
+              </span>
+            </div>
+          </div>
+
+          {importStatus && (
+            <div className={`form-banner ${importStatus.type}`}>{importStatus.msg}</div>
+          )}
+
+          <div className="import-drop-area">
+            <input
+              type="file"
+              id="import-file"
+              accept=".json,.csv,.xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={e => setImportFile(e.target.files[0])}
+            />
+            <label htmlFor="import-file" className="import-label">
+              {importFile
+                ? `📄 ${importFile.name}`
+                : '📂 Click to choose file — JSON, CSV, or Excel'}
+            </label>
+            <button
+              className="btn-primary"
+              onClick={handleImport}
+              disabled={!importFile || importLoading}
+            >
+              {importLoading ? 'Importing…' : 'Import Now'}
+            </button>
+          </div>
+        </div>
+
       </div>
     </main>
   )
@@ -300,17 +434,43 @@ function AdminPortal() {
 function App() {
   const [news, setNews] = useState([])
   const [loading, setLoading] = useState(true)
+  const [pagination, setPagination] = useState(null)
+
+  const fetchNews = (page = 1) => {
+    setLoading(true)
+    fetch(`${API}/news?page=${page}`)
+      .then(r => r.json())
+      .then(data => {
+        setNews(data.data)           // paginate() wraps in .data
+        setPagination({
+          current_page: data.current_page,
+          last_page:    data.last_page,
+          total:        data.total,
+        })
+        setLoading(false)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
+      .catch(() => setLoading(false))
+  }
 
   useEffect(() => {
-    fetch(`${API}/news`)
-      .then(r => r.json())
-      .then(data => { setNews(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+  fetch(`${API}/news?page=1`)
+    .then(r => r.json())
+    .then(data => {
+      setNews(data.data)
+      setPagination({
+        current_page: data.current_page,
+        last_page:    data.last_page,
+        total:        data.total,
+      })
+      setLoading(false)
+    })
+    .catch(() => setLoading(false))
+}, [])
 
   return (
     <Routes>
-      <Route path="/" element={<><Header /><Newsroom news={news} loading={loading} /></>} />
+      <Route path="/" element={<><Header /><Newsroom news={news} loading={loading} pagination={pagination} onPageChange={fetchNews} /></>} />
       <Route path="/news/:slug" element={<><Header /><ArticleDetail /></>} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminPortal />} />

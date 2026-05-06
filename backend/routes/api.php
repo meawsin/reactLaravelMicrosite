@@ -14,7 +14,8 @@ Route::post('/admin/login', [AuthController::class, 'login']);
 
 // --- Protected Admin Routes (require Sanctum token) ---
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/admin/news', [NewsArticleController::class, 'store']);
+Route::post('/admin/import', [App\Http\Controllers\ImportController::class, 'import']);    
+Route::post('/admin/news', [NewsArticleController::class, 'store']);
     Route::post('/admin/logout', [AuthController::class, 'logout']);
     Route::get('/admin/me', function (Request $request) {
         return $request->user();
