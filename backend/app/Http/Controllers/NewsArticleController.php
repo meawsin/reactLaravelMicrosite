@@ -47,4 +47,49 @@ class NewsArticleController extends Controller
 
         return response()->json($article, 201);
     }
+
+    public function adminIndex()
+    {
+        $news = NewsArticle::orderBy('published_at', 'desc')->paginate(20);
+        return response()->json($news);
+    }
+
+    public function update(Request $request, $id)
+    {
+        // Find the article by ID, or throw 404 if not found
+        // firstOrFail() = "get the first result, or fail with a 404 error"
+        $article = NewsArticle::findOrFail($id);
+
+        // Validate — 'sometimes' means "only validate if this field is present"
+        // This allows partial updates (only send what changed)
+        $validated = $request->validate([
+            'title'          => 'sometimes|required|string|max:255',
+            'content'        => 'sometimes|required|string',
+            'featured_image' => 'nullable|string',
+            'published_at'   => 'nullable|date',
+            // 'unique' but ignore THIS article's own slug
+            'slug'           => 'sometimes|required|unique:news_articles,slug,' . $id,
+        ]);
+
+        // If published_at was sent, convert it to MySQL format
+        if (isset($validated['published_at'])) {
+            $validated['published_at'] = date('Y-m-d H:i:s', strtotime($validated['published_at']));
+        }
+
+        // update() = SQL "UPDATE news_articles SET ... WHERE id = X"
+        $article->update($validated);
+
+        return response()->json($article);
+    }
+
+    public function destroy($id)
+    {
+        $article = NewsArticle::findOrFail($id);
+
+        // delete() = SQL "DELETE FROM news_articles WHERE id = X"
+        $article->delete();
+
+        // 204 = "No Content" — success but nothing to return
+        return response()->json(null, 204);
+    }
 }

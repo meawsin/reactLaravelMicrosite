@@ -219,6 +219,157 @@ function AdminLogin() {
   )
 }
 
+// ─── Admin Article List ───────────────────────────────────────────────────────
+function AdminArticleList({ onEdit }) {
+  const [articles, setArticles] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [page, setPage]         = useState(1)
+  const [pagination, setPagination] = useState(null)
+  const [deleteStatus, setDeleteStatus] = useState(null)
+
+  // Fetch articles from the NEW adminIndex route
+  // Notice: /admin/news not /news — this hits the protected route
+  const fetchArticles = (p = 1) => {
+    setLoading(true)
+    fetch(`${API}/admin/news?page=${p}`, {
+      headers: authHeaders() // ← needs token because it's a protected route
+    })
+      .then(r => r.json())
+      .then(data => {
+        setArticles(data.data)
+        setPagination({
+          current_page: data.current_page,
+          last_page:    data.last_page,
+          total:        data.total,
+        })
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }
+
+  useEffect(() => {
+  fetch(`${API}/admin/news?page=1`, { headers: authHeaders() })
+    .then(r => r.json())
+    .then(data => {
+      setArticles(data.data)
+      setPagination({
+        current_page: data.current_page,
+        last_page:    data.last_page,
+        total:        data.total,
+      })
+      setLoading(false)
+    })
+    .catch(() => setLoading(false))
+}, [])
+
+  // Delete handler
+  // async/await — waits for the DELETE request to finish before updating UI
+  const handleDelete = async (id, title) => {
+    // confirm() = browser built-in popup "are you sure?"
+    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return
+
+    try {
+      const res = await fetch(`${API}/admin/news/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
+
+      // 204 = success with no content
+      if (res.status === 204) {
+        setDeleteStatus({ type: 'success', msg: `"${title}" deleted.` })
+        // Refresh the list after deleting
+        fetchArticles(page)
+      }
+    } catch (err) {
+  // _err prefix tells ESLint "I know this exists, I'm intentionally not using it"
+  setDeleteStatus({ type: 'error', msg: err.message || 'Delete failed' })
+}
+  }
+
+  return (
+    <div className="article-list-section">
+      <h2 className="admin-heading" style={{ fontSize: '1.4rem' }}>
+        All Articles
+        {pagination && (
+          <span className="article-count">{pagination.total} total</span>
+        )}
+      </h2>
+
+      {deleteStatus && (
+        <div className={`form-banner ${deleteStatus.type}`}>
+          {deleteStatus.msg}
+        </div>
+      )}
+
+      {loading && (
+        <div className="loading-wrap"><div className="spinner" /></div>
+      )}
+
+      {!loading && articles.length === 0 && (
+        <p className="empty-state">No articles yet.</p>
+      )}
+
+      {!loading && articles.length > 0 && (
+        <div className="article-table">
+          {/* Header row */}
+          <div className="article-table-header">
+            <span>Title</span>
+            <span>Date</span>
+            <span>Actions</span>
+          </div>
+
+          {/* One row per article */}
+          {articles.map(article => (
+            <div key={article.id} className="article-table-row">
+              <div className="article-table-title">
+                <span className="article-title-text">{article.title}</span>
+                <span className="article-slug-text">/{article.slug}</span>
+              </div>
+              <div className="article-table-date">
+                {formatDate(article.published_at)}
+              </div>
+              <div className="article-table-actions">
+                {/* onEdit is a function passed from parent — tells AdminPortal which article to edit */}
+                <button
+                  className="btn-edit"
+                  onClick={() => onEdit(article)}
+                >
+                  Edit
+                </button>
+                <button
+                  className="btn-delete"
+                  onClick={() => handleDelete(article.id, article.title)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pagination && pagination.last_page > 1 && (
+        <div className="pagination" style={{ marginTop: '16px' }}>
+          <button className="page-btn"
+            disabled={page === 1}
+            onClick={() => { setPage(p => p - 1); fetchArticles(page - 1) }}>
+            ← Prev
+          </button>
+          <span style={{ padding: '8px 12px', fontSize: '.85rem', color: 'var(--muted)' }}>
+            Page {page} of {pagination.last_page}
+          </span>
+          <button className="page-btn"
+            disabled={page === pagination.last_page}
+            onClick={() => { setPage(p => p + 1); fetchArticles(page + 1) }}>
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AdminPortal() {
   const navigate = useNavigate()
 
@@ -231,6 +382,8 @@ function AdminPortal() {
   )
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [editingArticle, setEditingArticle] = useState(null)
+  const [activeTab, setActiveTab] = useState('list')
 
   // ── Bulk import state ──────────────────────────────────────────
   const [importFile, setImportFile] = useState(null)
@@ -251,14 +404,24 @@ function AdminPortal() {
   }
 
   // ── Single article submit ──────────────────────────────────────
-  const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setStatus(null)
-    const slug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-')
+
+    const slug = editingArticle
+      ? editingArticle.slug  // keep original slug when editing
+      : title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-')
+
+    // If editingArticle exists → PUT (update), else → POST (create)
+    const url    = editingArticle
+      ? `${API}/admin/news/${editingArticle.id}`
+      : `${API}/admin/news`
+    const method = editingArticle ? 'PUT' : 'POST'
+
     try {
-      const res = await fetch(`${API}/admin/news`, {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: authHeaders(),
         body: JSON.stringify({
           title, slug, content,
@@ -269,17 +432,42 @@ function AdminPortal() {
       const data = await res.json()
       if (!res.ok) {
         if (data.errors) throw new Error(Object.values(data.errors).flat().join(' '))
-        throw new Error(data.message || 'Upload failed')
+        throw new Error(data.message || 'Failed')
       }
-      setStatus({ type: 'success', msg: `"${data.title}" posted successfully!` })
-      setTitle(''); setContent(''); setImageUrl('')
+
+      setStatus({
+        type: 'success',
+        msg: editingArticle
+          ? `"${data.title}" updated successfully!`
+          : `"${data.title}" posted successfully!`
+      })
+
+      // Reset form
+      setTitle(''); setContent(''); setImageUrl(''); setEditingArticle(null)
       setPublishedAt(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+      if (editingArticle) setActiveTab('list')
     } catch (err) {
       setStatus({ type: 'error', msg: err.message })
     } finally {
       setLoading(false)
     }
   }
+
+  const handleEditClick = (article) => {
+  // Pre-fill the form with existing article data
+  setTitle(article.title)
+  setContent(article.content)
+  setImageUrl(article.featured_image || '')
+  setPublishedAt(
+    article.published_at
+      ? new Date(new Date(article.published_at) - new Date().getTimezoneOffset() * 60000)
+          .toISOString().slice(0, 16)
+      : ''
+  )
+  setEditingArticle(article) // remember which article we're editing
+  setActiveTab('post')       // switch to the post form tab
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
   // ── Bulk import submit ─────────────────────────────────────────
   const handleImport = async () => {
@@ -329,101 +517,142 @@ function AdminPortal() {
 
       <div className="admin-content">
 
-        {/* ── Section 1: Post Single Article ── */}
-        <h1 className="admin-heading">Post a News Article</h1>
-        <p className="admin-subheading">Fill in the details below. You can backdate articles when migrating old news.</p>
-
-        {status && <div className={`form-banner ${status.type}`}>{status.msg}</div>}
-
-        <form className="admin-form" onSubmit={handleSubmit}>
-          <div className="field">
-            <label className="field-label">Title *</label>
-            <input type="text" className="field-input"
-              placeholder="e.g. Shark Tank Bangladesh: Meet the Sharks"
-              value={title} onChange={e => setTitle(e.target.value)} required />
-          </div>
-          <div className="form-row two-col">
-            <div className="field">
-              <label className="field-label">Featured Image URL</label>
-              <input type="url" className="field-input"
-                placeholder="https://example.com/image.jpg"
-                value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
-            </div>
-            <div className="field">
-              <label className="field-label">Publish Date *</label>
-              <input type="datetime-local" className="field-input"
-                value={publishedAt} onChange={e => setPublishedAt(e.target.value)} required />
-              <span className="field-hint">Set a past date to backdate migrated articles</span>
-            </div>
-          </div>
-          {imageUrl && (
-            <div className="image-preview">
-              <span className="field-label">Preview</span>
-              <img src={imageUrl} alt="preview" onError={e => e.target.style.display = 'none'} />
-            </div>
-          )}
-          <div className="field">
-            <label className="field-label">Content * <span className="field-hint">(HTML supported)</span></label>
-            <textarea className="field-input field-textarea"
-              placeholder="Write your article content here. HTML tags like <b>, <a>, <p> are supported."
-              value={content} onChange={e => setContent(e.target.value)} required />
-          </div>
-          <div className="form-actions">
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Publishing…' : 'Publish Article'}
-            </button>
-          </div>
-        </form>
-
-        {/* ── Section 2: Bulk Import ── */}
-        <div className="import-section">
-          <h2 className="admin-heading" style={{ fontSize: '1.4rem' }}>Bulk Import News</h2>
-          <p className="admin-subheading">
-            Upload a <strong>JSON</strong> file exported from WordPress, or an <strong>Excel / CSV</strong> file from the old site.
-            Duplicate articles are skipped automatically based on slug.
-          </p>
-
-          <div className="import-how">
-            <div className="import-how-item">
-              <span className="import-how-badge">WordPress → JSON</span>
-              <span className="import-how-text">
-                Go to <code>localhost:8080/wordpress/wp-json/wp/v2/posts?per_page=100&_embed</code> → Save page as <code>.json</code> → Upload here
-              </span>
-            </div>
-            <div className="import-how-item">
-              <span className="import-how-badge">Old Site → Excel/CSV</span>
-              <span className="import-how-text">
-                Use the Excel sheet with columns: <code>title, date, slug, content, featured_image_url</code>
-              </span>
-            </div>
-          </div>
-
-          {importStatus && (
-            <div className={`form-banner ${importStatus.type}`}>{importStatus.msg}</div>
-          )}
-
-          <div className="import-drop-area">
-            <input
-              type="file"
-              id="import-file"
-              accept=".json,.csv,.xlsx,.xls"
-              style={{ display: 'none' }}
-              onChange={e => setImportFile(e.target.files[0])}
-            />
-            <label htmlFor="import-file" className="import-label">
-              {importFile
-                ? `📄 ${importFile.name}`
-                : '📂 Click to choose file — JSON, CSV, or Excel'}
-            </label>
-            <button
-              className="btn-primary"
-              onClick={handleImport}
-              disabled={!importFile || importLoading}
-            >
-              {importLoading ? 'Importing…' : 'Import Now'}
-            </button>
-          </div>
+        {/* ── Tabs ── */}
+        <div className="admin-tabs">
+          <button
+            className={`admin-tab ${activeTab === 'list' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('list'); setEditingArticle(null) }}
+          >
+            All Articles
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'post' ? 'active' : ''}`}
+            onClick={() => setActiveTab('post')}
+          >
+            {editingArticle ? '✏️ Editing Article' : '+ New Article'}
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'import' ? 'active' : ''}`}
+            onClick={() => setActiveTab('import')}
+          >
+            Bulk Import
+          </button>
         </div>
+
+        {/* ── Tab: All Articles ── */}
+        {activeTab === 'list' && (
+          <AdminArticleList onEdit={handleEditClick} />
+        )}
+
+        {/* ── Tab: Post / Edit Article ── */}
+        {activeTab === 'post' && (
+          <>
+            <h1 className="admin-heading">
+              {editingArticle ? 'Edit Article' : 'Post a New Article'}
+            </h1>
+            <p className="admin-subheading">
+              {editingArticle
+                ? `Editing: "${editingArticle.title}"`
+                : 'Fill in the details below.'}
+            </p>
+
+            {editingArticle && (
+              <button className="btn-cancel-edit" onClick={() => {
+                setEditingArticle(null)
+                setTitle(''); setContent(''); setImageUrl('')
+                setPublishedAt(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+                setStatus(null)
+              }}>
+                ✕ Cancel Edit — Start Fresh
+              </button>
+            )}
+
+            {status && <div className={`form-banner ${status.type}`}>{status.msg}</div>}
+
+            <form className="admin-form" onSubmit={handleSubmit}>
+              <div className="field">
+                <label className="field-label">Title *</label>
+                <input type="text" className="field-input"
+                  placeholder="e.g. Shark Tank Bangladesh: Meet the Sharks"
+                  value={title} onChange={e => setTitle(e.target.value)} required />
+              </div>
+              <div className="form-row two-col">
+                <div className="field">
+                  <label className="field-label">Featured Image URL</label>
+                  <input type="url" className="field-input"
+                    placeholder="https://example.com/image.jpg"
+                    value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Publish Date *</label>
+                  <input type="datetime-local" className="field-input"
+                    value={publishedAt} onChange={e => setPublishedAt(e.target.value)} required />
+                  <span className="field-hint">Set a past date to backdate articles</span>
+                </div>
+              </div>
+              {imageUrl && (
+                <div className="image-preview">
+                  <span className="field-label">Preview</span>
+                  <img src={imageUrl} alt="preview"
+                    onError={e => e.target.style.display = 'none'} />
+                </div>
+              )}
+              <div className="field">
+                <label className="field-label">Content * <span className="field-hint">(HTML supported)</span></label>
+                <textarea className="field-input field-textarea"
+                  placeholder="Write your article content here..."
+                  value={content} onChange={e => setContent(e.target.value)} required />
+              </div>
+              <div className="form-actions">
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading
+                    ? (editingArticle ? 'Saving…' : 'Publishing…')
+                    : (editingArticle ? 'Save Changes' : 'Publish Article')}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+
+        {/* ── Tab: Bulk Import ── */}
+        {activeTab === 'import' && (
+          <div className="import-section" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>
+            <h2 className="admin-heading" style={{ fontSize: '1.4rem' }}>Bulk Import News</h2>
+            <p className="admin-subheading">
+              Upload a <strong>JSON</strong> file from WordPress or an <strong>Excel/CSV</strong> from the old site.
+              Duplicates are skipped automatically.
+            </p>
+            <div className="import-how">
+              <div className="import-how-item">
+                <span className="import-how-badge">WordPress → JSON</span>
+                <span className="import-how-text">
+                  Go to <code>localhost:8080/wordpress/wp-json/wp/v2/posts?per_page=100&_embed</code> → Save as <code>.json</code> → Upload here
+                </span>
+              </div>
+              <div className="import-how-item">
+                <span className="import-how-badge">Old Site → Excel/CSV</span>
+                <span className="import-how-text">
+                  Columns needed: <code>title, date, slug, content, featured_image_url</code>
+                </span>
+              </div>
+            </div>
+            {importStatus && (
+              <div className={`form-banner ${importStatus.type}`}>{importStatus.msg}</div>
+            )}
+            <div className="import-drop-area">
+              <input type="file" id="import-file" accept=".json,.csv,.xlsx,.xls"
+                style={{ display: 'none' }}
+                onChange={e => setImportFile(e.target.files[0])} />
+              <label htmlFor="import-file" className="import-label">
+                {importFile ? `📄 ${importFile.name}` : '📂 Click to choose file — JSON, CSV, or Excel'}
+              </label>
+              <button className="btn-primary" onClick={handleImport}
+                disabled={!importFile || importLoading}>
+                {importLoading ? 'Importing…' : 'Import Now'}
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </main>
