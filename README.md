@@ -1,6 +1,8 @@
-# Startup Bangladesh Newsroom Microsite
+# Corporate Newsroom Microsite
 
-A modern, full-stack newsroom application built to manage and publish official press, media, and news articles. The project consists of a decoupled React frontend and a Laravel API backend, featuring a public-facing news feed and a secure admin portal for content management.
+A modern, full-stack newsroom application built to manage and publish official press, media, and news articles. The project consists of a decoupled React frontend and a Laravel API backend, featuring a public-facing news feed and a secure admin portal for content management. 
+
+*(Note: This is a sanitized, white-labeled version of a project originally developed during an industrial internship.)*
 
 ## Features
 
@@ -22,7 +24,7 @@ A modern, full-stack newsroom application built to manage and publish official p
 * **Backend:** Laravel (PHP), MySQL/SQLite, Laravel Sanctum
 * **Styling:** Custom CSS
 
-## Project Structure
+## 📂 Project Structure
 
 The repository is divided into two main directories:
 * `/frontend` - Contains the React application.
@@ -30,41 +32,19 @@ The repository is divided into two main directories:
 
 ## API Endpoints Reference
 
-Base URL: `http://localhost:8080/reactLaravelMicrosite/backend/public/api`
-
 ### Public Routes
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/news` | Fetch paginated news articles. Accepts optional `?search=` parameter. |
-| `GET` | `/news/{slug}` | Fetch a single news article by its unique slug. |
+| `GET` | `/api/news` | Fetch paginated news articles. Accepts optional `?search=` parameter. |
+| `GET` | `/api/news/{slug}` | Fetch a single news article by its unique slug. |
 
 ### Protected Admin Routes (Requires Bearer Token)
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/admin/login` | Authenticate admin and return a Sanctum token. |
-| `POST` | `/admin/logout` | Revoke the current token. |
-| `GET` | `/admin/news` | Fetch all articles for the admin dashboard (paginated). |
-| `POST` | `/admin/news` | Create a new article. |
-| `PUT` | `/admin/news/{id}` | Update an existing article. |
-| `DELETE` | `/admin/news/{id}` | Delete an article. |
-| `POST` | `/admin/import` | Bulk import articles via file upload. |
-
-## 💻 Local Development Setup
-
-### Backend (Laravel) Setup
-1. Navigate to the backend directory: `cd backend`
-2. Install PHP dependencies: `composer install`
-3. Copy the environment file: `cp .env.example .env`
-4. Generate the application key: `php artisan key:generate`
-5. Configure your `.env` database settings (e.g., MySQL or SQLite).
-6. Run database migrations: `php artisan migrate`
-7. Start the local server: `php artisan serve`
-
-### Frontend (React) Setup
-1. Navigate to the frontend directory: `cd frontend`
-2. Install JavaScript dependencies: `npm install`
-3. Ensure the `API` constant in `src/App.jsx` matches your local Laravel server URL.
-4. Start the Vite development server: `npm run dev`
-
-## Authentication Flow
-The application uses local storage (`sbl_admin_token`) on the frontend to persist the user session. All requests to `/admin/*` routes (except login) require this token to be passed in the `Authorization: Bearer <token>` header.
+| `POST` | `/api/admin/login` | Authenticate admin and return a Sanctum token. |
+| `POST` | `/api/admin/logout` | Revoke the current token. |
+| `GET` | `/api/admin/news` | Fetch all articles for the admin dashboard (paginated). |
+| `POST` | `/api/admin/news` | Create a new article. |
+| `PUT` | `/api/admin/news/{id}` | Update an existing article. |
+| `DELETE` | `/api/admin/news/{id}` | Delete an article. |
+| `POST` | `/api/admin/import` | Bulk import articles via file upload. |
