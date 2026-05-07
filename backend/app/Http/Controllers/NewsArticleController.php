@@ -7,12 +7,35 @@ use App\Models\NewsArticle;
 
 class NewsArticleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // @phpstan-ignore-next-line
-        $news = NewsArticle::orderBy('published_at', 'desc')
-            ->paginate(12);
-        return response()->json($news);
+        // $request->query('search') reads ?search=pathao from the URL
+        // This is called a "query parameter"
+        $search = $request->query('search');
+
+        $query = NewsArticle::orderBy('published_at', 'desc');
+
+        // Only apply search filter if search term was provided
+        if ($search) {
+            // "where" with LIKE = SQL pattern matching
+            // % means "anything before or after"
+            // so '%pathao%' matches "Pathao raises", "About Pathao", etc.
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'LIKE', "%{$search}%")
+                ->orWhere('content', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $news = $query->paginate(12);
+
+        // Include search term in response so React knows what was searched
+        return response()->json([
+            'data'         => $news->items(),
+            'current_page' => $news->currentPage(),
+            'last_page'    => $news->lastPage(),
+            'total'        => $news->total(),
+            'search'       => $search,
+        ]);
     }   
 
     public function show($slug)

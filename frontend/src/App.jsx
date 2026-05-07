@@ -61,7 +61,7 @@ function NewsCard({ article }) {
 }
 
 // ─── Pages ────────────────────────────────────────────────────────────────────
-function Newsroom({ news, loading, pagination, onPageChange }) {
+function Newsroom({ news, loading, pagination, onPageChange, search, onSearch }) {
   return (
     <main className="newsroom">
       <section className="newsroom-hero">
@@ -69,6 +69,28 @@ function Newsroom({ news, loading, pagination, onPageChange }) {
         <h1 className="hero-title">Latest News</h1>
         <div className="hero-line" />
       </section>
+
+      {/* ── Search Bar ── */}
+      <div className="search-wrap">
+        <div className="search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search news…"
+            value={search}
+            onChange={e => onSearch(e.target.value)}
+          />
+          {search && (
+            <button className="search-clear" onClick={() => onSearch('')}>✕</button>
+          )}
+        </div>
+        {search && !loading && (
+          <p className="search-results-count">
+            {pagination?.total} result{pagination?.total !== 1 ? 's' : ''} for <strong>"{search}"</strong>
+          </p>
+        )}
+      </div>
 
       {loading && (
         <div className="loading-wrap">
@@ -78,7 +100,9 @@ function Newsroom({ news, loading, pagination, onPageChange }) {
       )}
 
       {!loading && news.length === 0 && (
-        <p className="empty-state">No news articles yet.</p>
+        <p className="empty-state">
+          {search ? `No results found for "${search}"` : 'No news articles yet.'}
+        </p>
       )}
 
       <div className="news-grid">
@@ -87,32 +111,23 @@ function Newsroom({ news, loading, pagination, onPageChange }) {
         ))}
       </div>
 
-      {/* Pagination */}
       {pagination && pagination.last_page > 1 && (
         <div className="pagination">
-          <button
-            className="page-btn"
+          <button className="page-btn"
             disabled={pagination.current_page === 1}
-            onClick={() => onPageChange(pagination.current_page - 1)}
-          >
+            onClick={() => onPageChange(pagination.current_page - 1)}>
             ← Prev
           </button>
-
           {[...Array(pagination.last_page)].map((_, i) => (
-            <button
-              key={i + 1}
+            <button key={i + 1}
               className={`page-btn ${pagination.current_page === i + 1 ? 'active' : ''}`}
-              onClick={() => onPageChange(i + 1)}
-            >
+              onClick={() => onPageChange(i + 1)}>
               {i + 1}
             </button>
           ))}
-
-          <button
-            className="page-btn"
+          <button className="page-btn"
             disabled={pagination.current_page === pagination.last_page}
-            onClick={() => onPageChange(pagination.current_page + 1)}
-          >
+            onClick={() => onPageChange(pagination.current_page + 1)}>
             Next →
           </button>
         </div>
@@ -661,16 +676,22 @@ function AdminPortal() {
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
 function App() {
-  const [news, setNews] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [news, setNews]           = useState([])
+  const [loading, setLoading]     = useState(true)
   const [pagination, setPagination] = useState(null)
+  const [search, setSearch]       = useState('')
 
-  const fetchNews = (page = 1) => {
+  const fetchNews = (page = 1, searchTerm = search) => {
     setLoading(true)
-    fetch(`${API}/news?page=${page}`)
+    // Build URL — add ?search=term if searching
+    const url = searchTerm
+      ? `${API}/news?page=${page}&search=${encodeURIComponent(searchTerm)}`
+      : `${API}/news?page=${page}`
+
+    fetch(url)
       .then(r => r.json())
       .then(data => {
-        setNews(data.data)           // paginate() wraps in .data
+        setNews(data.data)
         setPagination({
           current_page: data.current_page,
           last_page:    data.last_page,
@@ -682,24 +703,49 @@ function App() {
       .catch(() => setLoading(false))
   }
 
+  // Handle search — debounce so we don't fire on every keystroke
+  const handleSearch = (term) => {
+    setSearch(term)
+  }
+
+  // useEffect watches 'search' — fires whenever search changes
+  // This is called a "dependency array"
   useEffect(() => {
-  fetch(`${API}/news?page=1`)
-    .then(r => r.json())
-    .then(data => {
-      setNews(data.data)
-      setPagination({
-        current_page: data.current_page,
-        last_page:    data.last_page,
-        total:        data.total,
+    const timer = setTimeout(() => {
+      fetchNews(1, search)
+    }, 400) // wait 400ms after user stops typing
+
+    // Cleanup function — cancels the timer if user types again before 400ms
+    return () => clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    fetch(`${API}/news?page=1`)
+      .then(r => r.json())
+      .then(data => {
+        setNews(data.data)
+        setPagination({
+          current_page: data.current_page,
+          last_page:    data.last_page,
+          total:        data.total,
+        })
+        setLoading(false)
       })
-      setLoading(false)
-    })
-    .catch(() => setLoading(false))
-}, [])
+      .catch(() => setLoading(false))
+  }, [])
 
   return (
     <Routes>
-      <Route path="/" element={<><Header /><Newsroom news={news} loading={loading} pagination={pagination} onPageChange={fetchNews} /></>} />
+      <Route path="/" element={
+        <><Header /><Newsroom
+          news={news}
+          loading={loading}
+          pagination={pagination}
+          onPageChange={(page) => fetchNews(page, search)}
+          search={search}
+          onSearch={handleSearch}
+        /></>
+      } />
       <Route path="/news/:slug" element={<><Header /><ArticleDetail /></>} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminPortal />} />

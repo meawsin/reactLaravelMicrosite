@@ -505,3 +505,52 @@ a { text-decoration: none; color: inherit; }
   transition: all .2s;
 }
 .btn-cancel-edit:hover { background: #f0d8a0; }
+
+/* ── Search ─────────────────────────────────────────────────────── */
+.search-wrap {
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 0 16px;
+  gap: 10px;
+  transition: border-color .2s, box-shadow .2s;
+  max-width: 480px;
+}
+.search-box:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(0,98,65,.08);
+}
+.search-icon { font-size: 1rem; opacity: .5; }
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 12px 0;
+  font-size: .92rem;
+  font-family: inherit;
+  color: var(--ink);
+  background: transparent;
+}
+.search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: .9rem;
+  padding: 4px;
+  transition: color .2s;
+}
+.search-clear:hover { color: var(--ink); }
+.search-results-count {
+  font-size: .82rem;
+  color: var(--muted);
+}
+.search-results-count strong { color: var(--ink); }
